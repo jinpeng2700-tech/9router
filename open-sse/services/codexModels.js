@@ -1,5 +1,5 @@
 /**
- * Codex Client Models Catalog Builder with Smart Deduplication and Clean Filtering
+ * Codex Client Models Catalog Builder with Smart Deduplication, Clean Filtering & Custom Whitelist Support
  */
 
 const REASONING_DESCRIPTIONS = {
@@ -57,7 +57,7 @@ const BASE_CODEX_TEMPLATE = {
   base_instructions: "You are Codex, a coding agent based on GPT-5. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.",
 };
 
-const CANONICAL_TEMPLATES = {
+export const CANONICAL_TEMPLATES = {
   "gpt-5.6-sol": {
     display_name: "GPT-5.6-Sol",
     description: "Latest frontier agentic coding model.",
@@ -334,9 +334,116 @@ function getBaseKey(slug) {
   return base.toLowerCase();
 }
 
-export function buildCodexModelsResponse(models = []) {
+function buildSingleCodexModelEntry(raw, customDisplayName = null, priorityOverride = null) {
+  const isCombo = (m) => m.owned_by === "combo" || m.kind === "combo";
+  const slug = String(raw.id || raw.slug || "").trim();
+  const baseSlug = slug.includes("/") ? slug.split("/").pop() : slug;
+  const template =
+    CANONICAL_TEMPLATES[slug] ||
+    CANONICAL_TEMPLATES[baseSlug] ||
+    CANONICAL_TEMPLATES[getBaseKey(slug)];
+
+  const caps = raw.capabilities || {};
+  const hasVision = caps.vision === true || raw.kind === "imageToText" || isCombo(raw);
+  const hasReasoning = caps.reasoning === true || template?.supported_reasoning_levels?.length > 1;
+  const contextWindow =
+    Number(raw.context_length) ||
+    Number(caps.contextWindow) ||
+    template?.context_window ||
+    BASE_CODEX_TEMPLATE.context_window;
+  const maxTokens =
+    Number(raw.max_completion_tokens) ||
+    Number(caps.maxOutput) ||
+    template?.max_tokens ||
+    64000;
+
+  const displayName =
+    customDisplayName ||
+    raw.display_name ||
+    template?.display_name ||
+    formatDisplayName(slug, raw.name);
+  const description = raw.description || template?.description || displayName;
+
+  const modelEntry = {
+    ...BASE_CODEX_TEMPLATE,
+    slug,
+    display_name: displayName,
+    description,
+    visibility: "list",
+    context_window: contextWindow,
+    max_context_window: contextWindow,
+    max_tokens: maxTokens,
+    input_modalities: hasVision ? ["text", "image"] : ["text"],
+    supports_image_detail_original: hasVision,
+    supports_parallel_tool_calls: caps.tools !== false,
+    supports_search_tool: caps.search === true || Boolean(template?.supports_search_tool),
+    experimental_supported_tools: [],
+    additional_speed_tiers: [],
+    service_tiers: [],
+    default_service_tier: null,
+    supports_reasoning_summary_parameter: true,
+    model_messages: null,
+  };
+
+  if (priorityOverride !== null && Number.isFinite(priorityOverride)) {
+    modelEntry.priority = priorityOverride;
+  } else if (template) {
+    modelEntry.priority = template.priority;
+  } else if (isCombo(raw)) {
+    modelEntry.priority = 10;
+  } else {
+    modelEntry.priority = 100;
+  }
+
+  if (template?.supported_reasoning_levels) {
+    modelEntry.default_reasoning_level = template.default_reasoning_level || "medium";
+    modelEntry.supported_reasoning_levels = template.supported_reasoning_levels;
+  } else if (isCombo(raw) || hasReasoning) {
+    modelEntry.supported_reasoning_levels = [
+      { effort: "low", description: REASONING_DESCRIPTIONS.low },
+      { effort: "medium", description: REASONING_DESCRIPTIONS.medium },
+      { effort: "high", description: REASONING_DESCRIPTIONS.high },
+      { effort: "xhigh", description: REASONING_DESCRIPTIONS.xhigh },
+    ];
+    modelEntry.default_reasoning_level = "medium";
+  } else {
+    modelEntry.supported_reasoning_levels = [
+      { effort: "none", description: REASONING_DESCRIPTIONS.none },
+    ];
+    modelEntry.default_reasoning_level = "none";
+  }
+
+  return modelEntry;
+}
+
+export function buildCodexModelsResponse(models = [], userConfig = null) {
   const isCombo = (m) => m.owned_by === "combo" || m.kind === "combo";
 
+  // Check if Custom Whitelist Mode is active
+  if (userConfig?.mode === "custom" && Array.isArray(userConfig.selectedModelIds)) {
+    const rawMap = new Map();
+    for (const raw of models) {
+      if (raw && raw.id) {
+        rawMap.set(String(raw.id).trim(), raw);
+      }
+    }
+
+    const customResult = [];
+    const customDisplayNames = userConfig.customDisplayNames || {};
+
+    userConfig.selectedModelIds.forEach((modelId, index) => {
+      const slug = String(modelId).trim();
+      if (!slug) return;
+      const raw = rawMap.get(slug) || { id: slug, owned_by: slug.includes("/") ? slug.split("/")[0] : "custom" };
+      const customName = customDisplayNames[slug] || null;
+      const entry = buildSingleCodexModelEntry(raw, customName, index + 1);
+      customResult.push(entry);
+    });
+
+    return { models: customResult };
+  }
+
+  // Default: Smart Deduplication and Clean Catalog Filtering
   const modelCandidates = new Map();
 
   for (const raw of models) {
@@ -366,87 +473,20 @@ export function buildCodexModelsResponse(models = []) {
 
   const result = [];
   const nonTemplateItems = [];
+  const customDisplayNames = userConfig?.customDisplayNames || {};
 
   for (const { raw } of modelCandidates.values()) {
     const slug = String(raw.id).trim();
+    const customName = customDisplayNames[slug] || null;
+    const modelEntry = buildSingleCodexModelEntry(raw, customName);
+
     const baseSlug = slug.includes("/") ? slug.split("/").pop() : slug;
-    const template =
-      CANONICAL_TEMPLATES[slug] ||
-      CANONICAL_TEMPLATES[baseSlug] ||
-      CANONICAL_TEMPLATES[getBaseKey(slug)];
+    const hasTemplate =
+      Boolean(CANONICAL_TEMPLATES[slug] || CANONICAL_TEMPLATES[baseSlug] || CANONICAL_TEMPLATES[getBaseKey(slug)]);
 
-    const caps = raw.capabilities || {};
-    const hasVision = caps.vision === true || raw.kind === "imageToText" || isCombo(raw);
-    const hasReasoning = caps.reasoning === true || template?.supported_reasoning_levels?.length > 1;
-    const contextWindow =
-      Number(raw.context_length) ||
-      Number(caps.contextWindow) ||
-      template?.context_window ||
-      BASE_CODEX_TEMPLATE.context_window;
-    const maxTokens =
-      Number(raw.max_completion_tokens) ||
-      Number(caps.maxOutput) ||
-      template?.max_tokens ||
-      64000;
-
-    const displayName =
-      raw.display_name ||
-      template?.display_name ||
-      formatDisplayName(slug, raw.name);
-    const description = raw.description || template?.description || displayName;
-
-    const modelEntry = {
-      ...BASE_CODEX_TEMPLATE,
-      slug,
-      display_name: displayName,
-      description,
-      visibility: "list",
-      context_window: contextWindow,
-      max_context_window: contextWindow,
-      max_tokens: maxTokens,
-      input_modalities: hasVision ? ["text", "image"] : ["text"],
-      supports_image_detail_original: hasVision,
-      supports_parallel_tool_calls: caps.tools !== false,
-      supports_search_tool: caps.search === true || Boolean(template?.supports_search_tool),
-      experimental_supported_tools: [],
-      additional_speed_tiers: [],
-      service_tiers: [],
-      default_service_tier: null,
-      supports_reasoning_summary_parameter: true,
-      model_messages: null,
-    };
-
-    if (template) {
-      modelEntry.priority = template.priority;
-      modelEntry.default_reasoning_level = template.default_reasoning_level;
-      modelEntry.supported_reasoning_levels = template.supported_reasoning_levels;
-    } else if (isCombo(raw)) {
-      modelEntry.priority = 10;
-      modelEntry.supported_reasoning_levels = [
-        { effort: "low", description: REASONING_DESCRIPTIONS.low },
-        { effort: "medium", description: REASONING_DESCRIPTIONS.medium },
-        { effort: "high", description: REASONING_DESCRIPTIONS.high },
-        { effort: "xhigh", description: REASONING_DESCRIPTIONS.xhigh },
-      ];
-      modelEntry.default_reasoning_level = "medium";
-    } else {
-      if (hasReasoning) {
-        modelEntry.supported_reasoning_levels = [
-          { effort: "low", description: REASONING_DESCRIPTIONS.low },
-          { effort: "medium", description: REASONING_DESCRIPTIONS.medium },
-          { effort: "high", description: REASONING_DESCRIPTIONS.high },
-          { effort: "xhigh", description: REASONING_DESCRIPTIONS.xhigh },
-        ];
-        modelEntry.default_reasoning_level = "medium";
-      } else {
-        modelEntry.supported_reasoning_levels = [
-          { effort: "none", description: REASONING_DESCRIPTIONS.none },
-        ];
-        modelEntry.default_reasoning_level = "none";
-      }
+    if (!hasTemplate && !isCombo(raw)) {
       nonTemplateItems.push(modelEntry);
     }
-
     result.push(modelEntry);
   }
 
@@ -466,4 +506,54 @@ export function buildCodexModelsResponse(models = []) {
   return { models: result };
 }
 
-export default { buildCodexModelsResponse, formatDisplayName };
+export function getAvailableCodexCandidates(models = []) {
+  const isCombo = (m) => m.owned_by === "combo" || m.kind === "combo";
+  const defaultCatalog = buildCodexModelsResponse(models, { mode: "auto" }).models;
+  const defaultRecommendedSlugs = new Set(defaultCatalog.map((m) => m.slug));
+
+  const candidates = [];
+  const seenSlugs = new Set();
+
+  for (const raw of models) {
+    if (!raw || !raw.id) continue;
+    const slug = String(raw.id).trim();
+    if (!slug || seenSlugs.has(slug)) continue;
+    seenSlugs.add(slug);
+
+    if (shouldExcludeModel(slug, raw.kind)) continue;
+
+    const provider = slug.includes("/")
+      ? slug.split("/")[0]
+      : isCombo(raw)
+      ? "combo"
+      : (raw.owned_by || "other");
+
+    const caps = raw.capabilities || {};
+    const hasVision = caps.vision === true || raw.kind === "imageToText" || isCombo(raw);
+    const hasReasoning = caps.reasoning === true;
+    const hasTools = caps.tools !== false;
+
+    candidates.push({
+      id: slug,
+      displayName: raw.display_name || formatDisplayName(slug, raw.name),
+      provider,
+      kind: raw.kind || (isCombo(raw) ? "combo" : "llm"),
+      hasVision,
+      hasReasoning,
+      hasTools,
+      isRecommended: defaultRecommendedSlugs.has(slug),
+    });
+  }
+
+  return {
+    candidates,
+    recommendedIds: Array.from(defaultRecommendedSlugs),
+  };
+}
+
+export default {
+  buildCodexModelsResponse,
+  formatDisplayName,
+  getAvailableCodexCandidates,
+  CANONICAL_TEMPLATES,
+};

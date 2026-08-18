@@ -5,7 +5,7 @@ import {
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
 } from "@/shared/constants/providers";
-import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
+import { getProviderConnections, getCombos, getCustomModels, getModelAliases, getCodexCatalogConfig } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
@@ -568,7 +568,13 @@ export async function GET(request) {
     // Handle Codex CLI / Codex App models discovery request
     const url = new URL(request?.url || "http://localhost", "http://localhost");
     if (url.searchParams.has("client_version") || request?.nextUrl?.searchParams?.has("client_version")) {
-      return Response.json(buildCodexModelsResponse(data), {
+      let codexConfig = null;
+      try {
+        codexConfig = await getCodexCatalogConfig();
+      } catch (err) {
+        console.log("Failed to load codex catalog config:", err);
+      }
+      return Response.json(buildCodexModelsResponse(data, codexConfig), {
         headers: { "Access-Control-Allow-Origin": "*" },
       });
     }

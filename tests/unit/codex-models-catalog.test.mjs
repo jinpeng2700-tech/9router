@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCodexModelsResponse, formatDisplayName } from "../../open-sse/services/codexModels.js";
+import { buildCodexModelsResponse, formatDisplayName, getAvailableCodexCandidates } from "../../open-sse/services/codexModels.js";
 
 test("formatDisplayName correctly handles dots, hyphens, and acronyms", () => {
   assert.equal(formatDisplayName("gemini-3.7-flash"), "Gemini 3.7 Flash");
@@ -59,4 +59,49 @@ test("buildCodexModelsResponse returns clean deduplicated Codex catalog", () => 
   const geminiFlash = result.models.find((m) => m.slug.includes("gemini-3.7-flash"));
   assert.ok(geminiFlash, "Gemini 3.7 Flash should be present");
   assert.equal(geminiFlash.display_name, "Gemini 3.7 Flash");
+});
+
+test("buildCodexModelsResponse handles custom whitelist and custom display names", () => {
+  const mockModels = [
+    { id: "gpt-5.6-sol", owned_by: "cx" },
+    { id: "claude-opus-4.6", owned_by: "combo" },
+    { id: "antigravity/gemini-3-flash-agent", owned_by: "antigravity", capabilities: { vision: true, reasoning: true } },
+    { id: "deepseek/deepseek-v3", owned_by: "deepseek" },
+    { id: "extra/unused-model", owned_by: "extra" },
+  ];
+
+  const userConfig = {
+    mode: "custom",
+    selectedModelIds: [
+      "antigravity/gemini-3-flash-agent",
+      "claude-opus-4.6",
+      "deepseek/deepseek-v3",
+    ],
+    customDisplayNames: {
+      "antigravity/gemini-3-flash-agent": "My Primary Gemini Flash",
+    },
+  };
+
+  const result = buildCodexModelsResponse(mockModels, userConfig);
+  assert.ok(result && Array.isArray(result.models));
+  assert.equal(result.models.length, 3, "Should strictly return 3 selected models");
+
+  assert.equal(result.models[0].slug, "antigravity/gemini-3-flash-agent");
+  assert.equal(result.models[0].display_name, "My Primary Gemini Flash");
+  assert.equal(result.models[0].priority, 1);
+  assert.deepEqual(result.models[0].input_modalities, ["text", "image"]);
+
+  assert.equal(result.models[1].slug, "claude-opus-4.6");
+  assert.equal(result.models[1].priority, 2);
+  assert.deepEqual(result.models[1].input_modalities, ["text", "image"]);
+
+  assert.equal(result.models[2].slug, "deepseek/deepseek-v3");
+  assert.equal(result.models[2].priority, 3);
+});
+
+test("getAvailableCodexCandidates returns candidates with recommendedIds", () => {
+  const mock = [{ id: "gpt-5.6-sol", owned_by: "cx" }, { id: "bge", kind: "embedding" }];
+  const { candidates, recommendedIds } = getAvailableCodexCandidates(mock);
+  assert.equal(candidates.some(c => c.id === "bge"), false);
+  assert.ok(recommendedIds.includes("gpt-5.6-sol"));
 });
