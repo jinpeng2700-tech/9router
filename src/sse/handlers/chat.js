@@ -31,9 +31,32 @@ import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 export async function handleChat(request, clientRawRequest = null) {
   let body;
   try {
-    body = await request.json();
-  } catch {
-    log.warn("CHAT", "Invalid JSON body");
+    const encoding = request.headers.get("content-encoding")?.toLowerCase()?.trim();
+    if (!encoding || encoding === "identity") {
+      try {
+        body = await request.json();
+      } catch {
+        const ab = await request.arrayBuffer();
+        body = JSON.parse(Buffer.from(ab).toString("utf8"));
+      }
+    } else {
+      let buffer = Buffer.from(await request.arrayBuffer());
+      const zlib = await import("zlib");
+      const parts = encoding.split(",").map(p => p.trim());
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const enc = parts[i];
+        if (enc === "zstd") {
+          buffer = zlib.zstdDecompressSync ? zlib.zstdDecompressSync(buffer) : buffer;
+        } else if (enc === "gzip" || enc === "deflate") {
+          buffer = zlib.gunzipSync(buffer);
+        } else if (enc === "br") {
+          buffer = zlib.brotliDecompressSync(buffer);
+        }
+      }
+      body = JSON.parse(buffer.toString("utf8"));
+    }
+  } catch (err) {
+    log.warn("CHAT", `Invalid JSON body: ${err?.message || err}`);
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
 

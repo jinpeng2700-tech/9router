@@ -14,7 +14,9 @@
     "build:bun": "bun --bun next build --webpack",
     "start:bun": "bun ./.next/standalone/custom-server.js",
     "cli:pack": "npm --prefix cli run pack:cli",
-    "cli:publish": "npm --prefix cli run publish:cli"
+    "cli:publish": "npm --prefix cli run publish:cli",
+    "patch:codex": "node scripts/apply-codex-patch.mjs",
+    "sync:upstream": "git fetch upstream && git checkout master && git merge upstream/master --ff-only && git checkout codex-enhanced && git merge master -m \"chore: merge upstream/master\" && git push origin master codex-enhanced"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

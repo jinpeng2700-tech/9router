@@ -18,6 +18,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { buildCodexModelsResponse } from "open-sse/services/codexModels.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
@@ -563,6 +564,14 @@ export async function GET(request) {
     // Detect cross-instance recursive /models fetch (another 9router fetching our /models)
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
     const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
+
+    // Handle Codex CLI / Codex App models discovery request
+    const url = new URL(request?.url || "http://localhost", "http://localhost");
+    if (url.searchParams.has("client_version") || request?.nextUrl?.searchParams?.has("client_version")) {
+      return Response.json(buildCodexModelsResponse(data), {
+        headers: { "Access-Control-Allow-Origin": "*" },
+      });
+    }
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
     });

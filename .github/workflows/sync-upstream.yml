@@ -1,0 +1,46 @@
+name: Sync Upstream & Rebase Codex Features
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # Runs daily at 02:00 UTC
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  sync-and-merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Fork Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: codex-enhanced
+
+      - name: Configure Git Committer
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch Upstream Repository
+        run: |
+          git remote add upstream https://github.com/decolua/9router.git || true
+          git fetch upstream master
+
+      - name: Fast-Forward master Branch
+        run: |
+          git checkout master
+          git merge upstream/master --ff-only
+          git push origin master
+
+      - name: Merge Upstream to codex-enhanced
+        run: |
+          git checkout codex-enhanced
+          # Merge master into codex-enhanced
+          git merge master --no-edit -m 'chore: merge latest upstream/master updates' || {
+            echo 'Merge conflict detected. Please resolve manually.'
+            exit 1
+          }
+          git push origin codex-enhanced

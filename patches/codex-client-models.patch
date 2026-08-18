@@ -1,0 +1,18 @@
+--- a/src/app/api/v1/models/route.js
++++ b/src/app/api/v1/models/route.js
+@@ -14,2 +14,3 @@
+ import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
++import { buildCodexModelsResponse } from "open-sse/services/codexModels.js";
+ 
+@@ -370,2 +371,9 @@
+     const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
++
++    // Handle Codex CLI / Codex App models discovery request
++    const url = new URL(request?.url || "http://localhost", "http://localhost");
++    if (url.searchParams.has("client_version") || request?.nextUrl?.searchParams?.has("client_version")) {
++      return Response.json(buildCodexModelsResponse(data), {
++        headers: { "Access-Control-Allow-Origin": "*" },
++      });
++    }
++
+     return Response.json({ object: "list", data }, {
