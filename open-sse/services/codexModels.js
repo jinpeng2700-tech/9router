@@ -376,7 +376,7 @@ export function buildCodexModelsResponse(models = []) {
       CANONICAL_TEMPLATES[getBaseKey(slug)];
 
     const caps = raw.capabilities || {};
-    const hasVision = caps.vision === true || raw.kind === "imageToText";
+    const hasVision = caps.vision === true || raw.kind === "imageToText" || isCombo(raw);
     const hasReasoning = caps.reasoning === true || template?.supported_reasoning_levels?.length > 1;
     const contextWindow =
       Number(raw.context_length) ||

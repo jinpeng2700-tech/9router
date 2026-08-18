@@ -44,9 +44,11 @@ test("buildCodexModelsResponse returns clean deduplicated Codex catalog", () => 
   assert.equal(result.models.some((m) => m.slug.includes("bge")), false, "Embeddings should be excluded");
   assert.equal(result.models.some((m) => m.slug.includes("dall-e")), false, "Image gen should be excluded");
 
-  // Verify combo is present
+  // Verify combo is present and has vision enabled by default
   const combo = result.models.find((m) => m.slug === "claude-opus-4.6");
   assert.ok(combo, "Combo claude-opus-4.6 should be preserved");
+  assert.deepEqual(combo.input_modalities, ["text", "image"], "Combo should support vision/image input");
+  assert.equal(combo.supports_image_detail_original, true, "Combo should support image detail original");
 
   // Verify primary provider models
   const sonnet = result.models.find((m) => m.slug.includes("claude-sonnet-4.6"));
