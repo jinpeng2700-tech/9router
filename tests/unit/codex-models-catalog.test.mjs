@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCodexModelsResponse } from "../../open-sse/services/codexModels.js";
+import { buildCodexModelsResponse, formatDisplayName } from "../../open-sse/services/codexModels.js";
+
+test("formatDisplayName correctly handles dots, hyphens, and acronyms", () => {
+  assert.equal(formatDisplayName("gemini-3.7-flash"), "Gemini 3.7 Flash");
+  assert.equal(formatDisplayName("gemini-3.7-flash-thinking"), "Gemini 3.7 Flash Thinking");
+  assert.equal(formatDisplayName("mimo-v2.5"), "Mimo V2.5");
+  assert.equal(formatDisplayName("gemini-cli"), "Gemini CLI");
+  assert.equal(formatDisplayName("claude-3-7-sonnet-20250219"), "Claude 3.7 Sonnet 20250219");
+  assert.equal(formatDisplayName("claude-3-5-haiku"), "Claude 3.5 Haiku");
+  assert.equal(formatDisplayName("deepseek-v3.2"), "DeepSeek V3.2");
+  assert.equal(formatDisplayName("deepseek-r1"), "DeepSeek R1");
+  assert.equal(formatDisplayName("qwen-2.5-coder-32b-instruct"), "Qwen 2.5 Coder 32B Instruct");
+  assert.equal(formatDisplayName("llama-3.3-70b-instruct"), "Llama 3.3 70B Instruct");
+  assert.equal(formatDisplayName("kimi-k1.5"), "Kimi K1.5");
+  assert.equal(formatDisplayName("minimax-m3"), "MiniMax M3");
+  assert.equal(formatDisplayName("antigravity/gemini-3-flash-agent"), "Gemini 3 Flash Agent");
+  assert.equal(formatDisplayName("custom-slug", "Explicit Name"), "Explicit Name");
+});
 
 test("buildCodexModelsResponse returns clean deduplicated Codex catalog", () => {
   const mockModels = [
@@ -11,6 +28,7 @@ test("buildCodexModelsResponse returns clean deduplicated Codex catalog", () => 
     { id: "claude-opus-4.6", owned_by: "combo" },
     { id: "gh/claude-sonnet-4.6", owned_by: "gh", capabilities: { vision: true, reasoning: true } },
     { id: "gc/gemini-2.5-flash", owned_by: "gc", capabilities: { vision: true, reasoning: true } },
+    { id: "gc/gemini-3.7-flash", owned_by: "gc", capabilities: { vision: true, reasoning: true } },
     { id: "siliconflowcn/bge-large-zh", owned_by: "siliconflowcn" },
     { id: "dall-e-3", kind: "image" },
   ];
@@ -34,4 +52,9 @@ test("buildCodexModelsResponse returns clean deduplicated Codex catalog", () => 
   const sonnet = result.models.find((m) => m.slug.includes("claude-sonnet-4.6"));
   assert.ok(sonnet, "Claude Sonnet 4.6 should be present");
   assert.equal(sonnet.display_name, "Claude Sonnet 4.6 (Thinking)");
+
+  // Verify formatted dynamic model preserves version dots
+  const geminiFlash = result.models.find((m) => m.slug.includes("gemini-3.7-flash"));
+  assert.ok(geminiFlash, "Gemini 3.7 Flash should be present");
+  assert.equal(geminiFlash.display_name, "Gemini 3.7 Flash");
 });

@@ -284,15 +284,21 @@ const PROVIDER_PRIORITY_MAP = {
   "codebuddy-cn": 9, qoder: 10, cursor: 11, kimchi: 12, "grok-cli": 13, xai: 13,
 };
 
-function formatDisplayName(slug, explicitName) {
+export function formatDisplayName(slug, explicitName) {
   if (explicitName && explicitName.trim() !== "" && explicitName !== slug) {
     return explicitName.trim();
   }
   const baseName = slug.includes("/") ? slug.split("/").pop() : slug;
   return baseName
-    .replace(/[-_.]+/g, " ")
+    .replace(/(?<=[a-z])-(\d+)-(\d+)(?=[-_]|$)/gi, "-$1.$2")
+    .replace(/(?<!\d)\.|\.(?!\d)|[-_]+/g, " ")
     .replace(/\b[a-z]/g, (char) => char.toUpperCase())
-    .replace(/\b(Gpt|Ai|Oss|Tts|Stt|Llm)\b/gi, (m) => m.toUpperCase())
+    .replace(/\b([vr])(?=\d)/gi, (m, p1) => p1.toUpperCase())
+    .replace(/\b(\d+)([bkmt])\b/gi, (m, num, unit) => `${num}${unit.toUpperCase()}`)
+    .replace(/\b(Gpt|Ai|Oss|Tts|Stt|Llm|Cli|Glm|Api)\b/gi, (m) => m.toUpperCase())
+    .replace(/\bDeepseek\b/gi, "DeepSeek")
+    .replace(/\bMinimax\b/gi, "MiniMax")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -460,4 +466,4 @@ export function buildCodexModelsResponse(models = []) {
   return { models: result };
 }
 
-export default { buildCodexModelsResponse };
+export default { buildCodexModelsResponse, formatDisplayName };
