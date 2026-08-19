@@ -57,7 +57,7 @@ const BASE_CODEX_TEMPLATE = {
   base_instructions: "You are Codex, a coding agent based on GPT-5. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.",
 };
 
-export const CANONICAL_TEMPLATES = {
+const CANONICAL_TEMPLATES = {
   "gpt-5.6-sol": {
     display_name: "GPT-5.6-Sol",
     description: "Latest frontier agentic coding model.",
@@ -284,7 +284,7 @@ const PROVIDER_PRIORITY_MAP = {
   "codebuddy-cn": 9, qoder: 10, cursor: 11, kimchi: 12, "grok-cli": 13, xai: 13,
 };
 
-export function formatDisplayName(slug, explicitName) {
+function formatDisplayName(slug, explicitName) {
   if (explicitName && explicitName.trim() !== "" && explicitName !== slug) {
     return explicitName.trim();
   }
@@ -416,7 +416,48 @@ function buildSingleCodexModelEntry(raw, customDisplayName = null, priorityOverr
   return modelEntry;
 }
 
-export function buildCodexModelsResponse(models = [], userConfig = null) {
+
+function loadCodexCatalogConfigSync() {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const possiblePaths = [
+      path.join(process.env.DATA_DIR || "/app/data", "db", "data.sqlite"),
+      "/app/data/db/data.sqlite",
+      path.join(process.env.HOME || "/root", ".9router", "db", "data.sqlite"),
+    ];
+    let dbPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        dbPath = p;
+        break;
+      }
+    }
+    if (!dbPath) return null;
+
+    let Database;
+    try {
+      Database = require("better-sqlite3");
+    } catch {
+      return null;
+    }
+    const db = new Database(dbPath, { readonly: true });
+    const row = db.prepare("SELECT value FROM kv WHERE scope = ? AND key = ?").get("codexCatalog", "config");
+    db.close();
+    if (row && row.value) {
+      return typeof row.value === "string" ? JSON.parse(row.value) : row.value;
+    }
+  } catch {}
+  return null;
+}
+
+function buildCodexModelsResponse(models = [], userConfig = null) {
+  if (!userConfig || typeof userConfig !== "object" || !userConfig.mode) {
+    const loaded = loadCodexCatalogConfigSync();
+    if (loaded && loaded.mode) {
+      userConfig = loaded;
+    }
+  }
   const isCombo = (m) => m.owned_by === "combo" || m.kind === "combo";
 
   // Check if Custom Whitelist Mode is active
@@ -506,7 +547,7 @@ export function buildCodexModelsResponse(models = [], userConfig = null) {
   return { models: result };
 }
 
-export function getAvailableCodexCandidates(models = []) {
+function getAvailableCodexCandidates(models = []) {
   const isCombo = (m) => m.owned_by === "combo" || m.kind === "combo";
   const defaultCatalog = buildCodexModelsResponse(models, { mode: "auto" }).models;
   const defaultRecommendedSlugs = new Set(defaultCatalog.map((m) => m.slug));
@@ -551,9 +592,18 @@ export function getAvailableCodexCandidates(models = []) {
   };
 }
 
-export default {
+const codexModule = {
   buildCodexModelsResponse,
   formatDisplayName,
   getAvailableCodexCandidates,
+  loadCodexCatalogConfigSync,
   CANONICAL_TEMPLATES,
 };
+
+module.exports = codexModule;
+module.exports.default = codexModule;
+module.exports.buildCodexModelsResponse = buildCodexModelsResponse;
+module.exports.formatDisplayName = formatDisplayName;
+module.exports.getAvailableCodexCandidates = getAvailableCodexCandidates;
+module.exports.loadCodexCatalogConfigSync = loadCodexCatalogConfigSync;
+module.exports.CANONICAL_TEMPLATES = CANONICAL_TEMPLATES;
