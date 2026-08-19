@@ -16,7 +16,8 @@
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli",
     "patch:codex": "node scripts/apply-codex-patch.mjs",
-    "sync:upstream": "git fetch upstream && git checkout master && git merge upstream/master --ff-only && git checkout codex-enhanced && git merge master -m \"chore: merge upstream/master\" && git push origin master codex-enhanced"
+    "sync:upstream": "git fetch upstream && git checkout master && git merge upstream/master --ff-only && git checkout codex-enhanced && git merge master -m \"chore: merge upstream/master\" && git push origin master codex-enhanced",
+    "test": "node --test tests/unit/*.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -63,5 +64,9 @@
     "eslint-config-next": "16.1.6",
     "postcss": "^8.5.6",
     "tailwindcss": "^4"
+  },
+  "imports": {
+    "@/*": "./src/*",
+    "open-sse/*": "./open-sse/*"
   }
 }

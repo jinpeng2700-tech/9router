@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import QuotaTable from "./QuotaTable";
+import AntigravityQuotaView from "./AntigravityQuotaView";
 import Toggle from "@/shared/components/Toggle";
 import Tooltip from "@/shared/components/Tooltip";
 import {
@@ -1057,9 +1058,18 @@ export default function ProviderLimits() {
                       />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-text-primary capitalize truncate">
-                        {conn.provider}
-                      </h3>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="text-sm font-semibold text-text-primary capitalize truncate">
+                          {conn.provider}
+                        </h3>
+                        {quota?.plan && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${String(quota.plan).toLowerCase().includes("ultra") ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" : String(quota.plan).toLowerCase().includes("pro") ? "bg-primary/10 text-primary border-primary/20" : "bg-black/5 dark:bg-white/10 text-text-muted border-black/10 dark:border-white/10"}`}
+                          >
+                            {quota.plan}
+                          </span>
+                        )}
+                      </div>
                       {getConnectionLabel(conn) ? (
                         <p className="text-xs text-text-muted truncate">
                           {getConnectionLabel(conn)}
@@ -1255,6 +1265,18 @@ export default function ProviderLimits() {
                     <p className="text-xs text-text-muted">{quota.message}</p>
                   </div>
                 ) : (
+                  conn.provider === "antigravity" && Array.isArray(quota?.raw?.groups) && quota.raw.groups.length > 0 ? (
+                  <AntigravityQuotaView
+                    groups={quota.raw.groups}
+                    serverTimeOffsetMs={quota.raw.serverTimeOffsetMs}
+                  />
+                ) : (
+                  conn.provider === "antigravity" && Array.isArray(quota?.raw?.groups) && quota.raw.groups.length > 0 ? (
+                  <AntigravityQuotaView
+                    groups={quota.raw.groups}
+                    serverTimeOffsetMs={quota.raw.serverTimeOffsetMs}
+                  />
+                ) : (
                   <QuotaTable
                     quotas={visibleQuotas}
                     compact
@@ -1264,8 +1286,10 @@ export default function ProviderLimits() {
                     }
                     onHideQuota={(quotaRow) => handleHideQuota(conn.provider, quotaRow)}
                   />
+                )
+                )
                 )}
-                {hiddenQuotaRows.length > 0 && (
+                {hiddenQuotaRows.length > 0 && !(conn.provider === "antigravity" && Array.isArray(quota?.raw?.groups) && quota.raw.groups.length > 0) && (
                   <div className="mt-2 flex min-w-0 items-center gap-1 border-t border-black/5 pt-2 text-[10px] text-text-muted dark:border-white/5">
                     <span className="material-symbols-outlined shrink-0 text-[14px]">
                       visibility_off

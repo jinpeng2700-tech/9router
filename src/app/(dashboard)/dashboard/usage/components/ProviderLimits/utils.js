@@ -1,4 +1,4 @@
-import { getModelsByProviderId } from "open-sse/config/providerModels.js";
+import { getModelsByProviderId } from "../../../../../../../open-sse/config/providerModels.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 export const QUOTA_CACHE_KEY = "quotaCacheData";
@@ -30,9 +30,25 @@ export function getConnectionLabel(connection) {
 }
 
 export function getConnectionQuotaRemaining(connection, quotaData) {
+  const connQuotas = quotaData[connection.id]?.quotas;
+  if (Array.isArray(connQuotas) && connQuotas.length > 0) {
+    let minRemaining = Number.POSITIVE_INFINITY;
+    for (const q of connQuotas) {
+      const rem = typeof q.remaining === "number"
+        ? q.remaining
+        : typeof q.remainingPercentage === "number"
+          ? q.remainingPercentage
+          : calculatePercentage(q.used, q.total);
+      if (typeof rem === "number" && Number.isFinite(rem) && rem < minRemaining) {
+        minRemaining = rem;
+      }
+    }
+    return minRemaining !== Number.POSITIVE_INFINITY ? minRemaining : Number.POSITIVE_INFINITY;
+  }
   const quota = quotaData[connection.id]?.quotas?.[0];
   if (!quota) return Number.POSITIVE_INFINITY;
   if (typeof quota.remaining === "number") return quota.remaining;
+  if (typeof quota.remainingPercentage === "number") return quota.remainingPercentage;
   return Number.POSITIVE_INFINITY;
 }
 
@@ -362,11 +378,44 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "antigravity":
-        if (data.quotas) {
+        if (Array.isArray(data.groups) && data.groups.length > 0) {
+          data.groups.forEach((group) => {
+            const groupName = group.displayName || group.label || "Quota Group";
+            (group.buckets || []).forEach((bucket) => {
+              const bucketName = bucket.displayName || bucket.label || "Limit";
+              const rawFraction = bucket.remainingFraction != null
+                ? Number(bucket.remainingFraction)
+                : bucket.remaining_fraction != null
+                  ? Number(bucket.remaining_fraction)
+                  : 1;
+              const remainingFraction = Number.isFinite(rawFraction) ? Math.max(0, Math.min(1, rawFraction)) : 1;
+              const remainingPercentage = bucket.remainingPercentage !== undefined
+                ? bucket.remainingPercentage
+                : Math.round(remainingFraction * 100);
+              const total = 1000;
+              const remaining = Math.round(total * remainingFraction);
+              const used = Math.max(0, total - remaining);
+
+              normalizedQuotas.push({
+                name: `${groupName} - ${bucketName}`,
+                displayName: bucketName,
+                groupName,
+                groupDescription: group.description,
+                used,
+                total,
+                resetAt: bucket.resetAt || (bucket.resetTime ? new Date(bucket.resetTime).toISOString() : null),
+                resetTime: bucket.resetTime,
+                remainingPercentage,
+                remainingFraction,
+                window: bucket.window,
+              });
+            });
+          });
+        } else if (data.quotas) {
           Object.entries(data.quotas).forEach(([modelKey, quota]) => {
             normalizedQuotas.push({
               name: quota.displayName || modelKey,
-              modelKey: modelKey, // Keep modelKey for sorting
+              modelKey: modelKey,
               used: quota.used || 0,
               total: quota.total || 0,
               resetAt: quota.resetAt || null,

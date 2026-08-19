@@ -37,7 +37,7 @@ export default {
     },
     usage: {
       // Discovery (quota/project) on PROD; daily host rejects these.
-      quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+      quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
       loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
       tokenUrl: "https://oauth2.googleapis.com/token",
     },
