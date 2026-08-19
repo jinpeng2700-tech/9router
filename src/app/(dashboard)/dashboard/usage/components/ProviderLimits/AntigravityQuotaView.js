@@ -70,6 +70,15 @@ function translateBucketLabel(label) {
   return translate(label);
 }
 
+function getBucketSortOrder(bucket) {
+  const w = String(bucket.window || "").toLowerCase();
+  const l = String(bucket.displayName || bucket.label || "").toLowerCase();
+  if (w.includes("5") || w.includes("hour") || l.includes("five") || l.includes("5")) return 0;
+  if (w.includes("week") || l.includes("week")) return 1;
+  if (w.includes("day") || l.includes("day")) return 2;
+  return 99;
+}
+
 function getMeterColor(percentage) {
   if (percentage > 70) {
     return {
@@ -115,7 +124,9 @@ export default function AntigravityQuotaView({
       {groups.map((group, gIdx) => {
         const groupTitle = translateGroupTitle(group.displayName || group.label);
         const groupDesc = translateGroupDesc(group.description);
-        const buckets = Array.isArray(group.buckets) ? group.buckets : [];
+        const buckets = Array.isArray(group.buckets)
+          ? [...group.buckets].sort((a, b) => getBucketSortOrder(a) - getBucketSortOrder(b))
+          : [];
 
         return (
           <div

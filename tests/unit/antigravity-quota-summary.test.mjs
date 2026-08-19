@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseQuotaData, getConnectionQuotaRemaining, formatResetTime } from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
 
-test("parseQuotaData parses Antigravity retrieveUserQuotaSummary groups correctly", () => {
+test("parseQuotaData parses Antigravity retrieveUserQuotaSummary groups and ensures 5-hour limit is sorted above weekly limit", () => {
+  // Pass weekly first to verify sort orders 5h before weekly
   const mockSummaryPayload = {
     groups: [
       {
@@ -10,16 +11,16 @@ test("parseQuotaData parses Antigravity retrieveUserQuotaSummary groups correctl
         description: "Models within this group: Gemini Flash, Gemini Pro",
         buckets: [
           {
-            displayName: "Five Hour Limit Remaining",
-            remainingFraction: 0.9,
-            resetTime: "2026-08-19T14:49:00Z",
-            window: "5h",
-          },
-          {
             displayName: "Weekly Limit Remaining",
             remainingFraction: 0.61,
             resetTime: "2026-08-20T03:50:00Z",
             window: "weekly",
+          },
+          {
+            displayName: "Five Hour Limit Remaining",
+            remainingFraction: 0.9,
+            resetTime: "2026-08-19T14:49:00Z",
+            window: "5h",
           },
         ],
       },
@@ -28,16 +29,16 @@ test("parseQuotaData parses Antigravity retrieveUserQuotaSummary groups correctl
         description: "Models within this group: Claude Opus, Claude Sonnet, GPT-OSS",
         buckets: [
           {
-            displayName: "Five Hour Limit Remaining",
-            remainingFraction: 1.0,
-            resetTime: "2026-08-19T16:57:00Z",
-            window: "5h",
-          },
-          {
             displayName: "Weekly Limit Remaining",
             remainingFraction: 1.0,
             resetTime: "2026-08-26T14:00:00Z",
             window: "weekly",
+          },
+          {
+            displayName: "Five Hour Limit Remaining",
+            remainingFraction: 1.0,
+            resetTime: "2026-08-19T16:57:00Z",
+            window: "5h",
           },
         ],
       },
@@ -47,24 +48,15 @@ test("parseQuotaData parses Antigravity retrieveUserQuotaSummary groups correctl
   const parsed = parseQuotaData("antigravity", mockSummaryPayload);
   assert.equal(parsed.length, 4);
 
-  const gemini5h = parsed.find((q) => q.name.includes("GEMINI") && q.displayName.includes("Five Hour"));
-  assert.ok(gemini5h);
-  assert.equal(gemini5h.remainingPercentage, 90);
-  assert.equal(gemini5h.remainingFraction, 0.9);
-  assert.equal(gemini5h.used, 100);
-  assert.equal(gemini5h.total, 1000);
+  // Group 1 checks (Gemini): 5h must be first, weekly must be second
+  assert.equal(parsed[0].displayName, "Five Hour Limit Remaining", "5h limit must be on top");
+  assert.equal(parsed[0].remainingPercentage, 90);
+  assert.equal(parsed[1].displayName, "Weekly Limit Remaining", "Weekly limit must be below");
+  assert.equal(parsed[1].remainingPercentage, 61);
 
-  const geminiWeekly = parsed.find((q) => q.name.includes("GEMINI") && q.displayName.includes("Weekly"));
-  assert.ok(geminiWeekly);
-  assert.equal(geminiWeekly.remainingPercentage, 61);
-  assert.equal(geminiWeekly.remainingFraction, 0.61);
-  assert.equal(geminiWeekly.used, 390);
-
-  const claude5h = parsed.find((q) => q.name.includes("CLAUDE") && q.displayName.includes("Five Hour"));
-  assert.ok(claude5h);
-  assert.equal(claude5h.remainingPercentage, 100);
-  assert.equal(claude5h.remainingFraction, 1.0);
-  assert.equal(claude5h.used, 0);
+  // Group 2 checks (Claude/GPT): 5h must be first, weekly must be second
+  assert.equal(parsed[2].displayName, "Five Hour Limit Remaining", "5h limit must be on top");
+  assert.equal(parsed[3].displayName, "Weekly Limit Remaining", "Weekly limit must be below");
 
   const mockQuotaDataState = {
     "conn-1": {

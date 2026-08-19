@@ -87,6 +87,18 @@ function parseQuotaSummaryData(data) {
         }
       }
 
+      buckets.sort((a, b) => {
+        const getOrder = (item) => {
+          const w = String(item.window || "").toLowerCase();
+          const l = String(item.displayName || item.label || "").toLowerCase();
+          if (w.includes("5") || w.includes("hour") || l.includes("five") || l.includes("5")) return 0;
+          if (w.includes("week") || l.includes("week")) return 1;
+          if (w.includes("day") || l.includes("day")) return 2;
+          return 99;
+        };
+        return getOrder(a) - getOrder(b);
+      });
+
       groups.push({
         id: group.groupId || group.group_id || groupLabel.toLowerCase().replace(/\s+/g, "-"),
         label: groupLabel,

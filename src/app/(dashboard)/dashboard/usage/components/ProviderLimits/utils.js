@@ -381,7 +381,17 @@ export function parseQuotaData(provider, data) {
         if (Array.isArray(data.groups) && data.groups.length > 0) {
           data.groups.forEach((group) => {
             const groupName = group.displayName || group.label || "Quota Group";
-            (group.buckets || []).forEach((bucket) => {
+            const sortedGroupBuckets = [...(group.buckets || [])].sort((a, b) => {
+              const getO = (item) => {
+                const w = String(item.window || "").toLowerCase();
+                const l = String(item.displayName || item.label || "").toLowerCase();
+                if (w.includes("5") || w.includes("hour") || l.includes("five") || l.includes("5")) return 0;
+                if (w.includes("week") || l.includes("week")) return 1;
+                return 99;
+              };
+              return getO(a) - getO(b);
+            });
+            sortedGroupBuckets.forEach((bucket) => {
               const bucketName = bucket.displayName || bucket.label || "Limit";
               const rawFraction = bucket.remainingFraction != null
                 ? Number(bucket.remainingFraction)
