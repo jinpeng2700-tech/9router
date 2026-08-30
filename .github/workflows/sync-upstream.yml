@@ -31,7 +31,7 @@ jobs:
 
       - name: Fast-Forward master Branch
         run: |
-          git checkout master
+          git checkout -B master origin/master
           git merge upstream/master --ff-only
           git push origin master
 
