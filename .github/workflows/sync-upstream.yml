@@ -13,29 +13,49 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Check upstream version
+        id: upstream
+        run: |
+          upstream_sha=$(git ls-remote https://github.com/decolua/9router.git refs/heads/master | awk '{print $1}')
+          master_sha=$(git ls-remote https://github.com/${GITHUB_REPOSITORY}.git refs/heads/master | awk '{print $1}')
+          if [ -z "$upstream_sha" ] || [ -z "$master_sha" ]; then
+            echo "Failed to read an upstream or fork master SHA."
+            exit 1
+          fi
+          if [ "$upstream_sha" = "$master_sha" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout Fork Repository
+        if: steps.upstream.outputs.changed == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: codex-enhanced
 
       - name: Configure Git Committer
+        if: steps.upstream.outputs.changed == 'true'
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
       - name: Fetch Upstream Repository
+        if: steps.upstream.outputs.changed == 'true'
         run: |
           git remote add upstream https://github.com/decolua/9router.git || true
           git fetch upstream master
 
       - name: Fast-Forward master Branch
+        if: steps.upstream.outputs.changed == 'true'
         run: |
           git checkout -B master origin/master
           git merge upstream/master --ff-only
           git push origin master
 
       - name: Merge Upstream to codex-enhanced
+        if: steps.upstream.outputs.changed == 'true'
         run: |
           git checkout codex-enhanced
           # Merge master into codex-enhanced
